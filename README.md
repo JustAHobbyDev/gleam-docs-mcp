@@ -1,130 +1,96 @@
-# Gleam Docs MCP 🧙🏾‍♂️
+# Gleam Docs MCP
 
-> **The ultimate Model Context Protocol server for [Gleam](https://gleam.run) development** — built natively in Gleam on the BEAM, with zero JavaScript dependencies.
-
-[![CI](https://github.com/criticalinsight/gleam-docs-mcp/actions/workflows/test.yml/badge.svg)](https://github.com/criticalinsight/gleam-docs-mcp/actions)
-[![Gleam](https://img.shields.io/badge/gleam-%E2%9C%A8-ffaff3)](https://gleam.run)
+[![CI](https://github.com/JustAHobbyDev/gleam-docs-mcp/actions/workflows/test.yml/badge.svg)](https://github.com/JustAHobbyDev/gleam-docs-mcp/actions)
+[![Gleam](https://img.shields.io/badge/Gleam-1.18.1-ffaff3)](https://gleam.run)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-Gleam Docs MCP gives AI assistants (Claude, GPT, Gemini, etc.) deep access to
-the Gleam ecosystem — compiler diagnostics, Hex.pm package search, Gloogle type
-search, module scaffolding, and sandboxed code evaluation — all over the
-[Model Context Protocol](https://modelcontextprotocol.io).
+A native Gleam MCP server for grounded compiler diagnostics and ecosystem
+package discovery. It runs on the BEAM, communicates over stdio, and exposes a
+small read-oriented tool set with explicit MCP safety annotations.
 
-## Why Gleam Docs MCP?
+## Tools
 
-- **Native Gleam** — no Node.js wrapper, runs directly on the BEAM
-- **15 tools** — from `gleam check` to Gloogle type search
-- **Structured TOML parsing** — dependencies extracted via `tom`, not raw strings
-- **Stateless HTTP clients** — zero local state for Hex.pm and Gloogle APIs
-- **stdio transport** — plug into any MCP client instantly
+| Tool | Description |
+|---|---|
+| `get_compiler_diagnostics` | Run `gleam check` in a local project and return its diagnostics |
+| `list_dependencies` | Read dependencies and dev dependencies from `gleam.toml` |
+| `list_local_modules` | Recursively list Gleam modules under `src/` |
+| `gloogle_search` | Search Gloogle by name or type signature |
+| `search_hex_packages` | Search Hex for Gleam packages |
+| `get_package_releases` | List the 20 most recent releases for a Hex package |
 
-## Quick Start
+All six tools are advertised as read-only, non-destructive, and idempotent.
+The local tools require a directory containing `gleam.toml`. The ecosystem
+tools are stateless and use TLS-verified HTTP requests with a 10-second timeout.
+
+`gloogle_search` depends on the external `api.gloogle.run` service. If that
+service is unavailable or returns an unexpected response, the tool returns an
+explicit MCP error result rather than crashing the server.
+
+## Install
+
+The tested toolchain is Gleam 1.18.1, Erlang/OTP 29.0.5, and rebar3 3.27.0.
 
 ```sh
-# Clone and run
-git clone https://github.com/criticalinsight/gleam-docs-mcp.git
+git clone https://github.com/JustAHobbyDev/gleam-docs-mcp.git
 cd gleam-docs-mcp
 gleam deps download
-gleam run
+gleam test
 ```
 
-Add to your MCP client config (e.g. Claude Desktop):
+### Codex
+
+Add the server to `~/.codex/config.toml`, replacing the checkout path:
+
+```toml
+[mcp_servers.gleam-docs]
+command = "mise"
+args = ["exec", "-C", "/absolute/path/to/gleam-docs-mcp", "--", "gleam", "run", "--no-print-progress"]
+enabled = true
+```
+
+### Other MCP clients
+
+Clients that support stdio servers can run Gleam directly from the checkout:
 
 ```json
 {
   "mcpServers": {
     "gleam-docs": {
       "command": "gleam",
-      "args": ["run"],
-      "cwd": "/path/to/gleam-docs-mcp"
+      "args": ["run", "--no-print-progress"],
+      "cwd": "/absolute/path/to/gleam-docs-mcp"
     }
   }
 }
 ```
 
-## Tools (15)
+Restart the client after changing its MCP configuration.
 
-### Project Diagnostics
+## Safety and failure behavior
 
-| Tool | Description |
-|---|---|
-| `get_compiler_diagnostics` | Run `gleam check` on a project |
-| `format_project` | Run `gleam format` on a project |
-
-### Local Discovery & Scaffolding
-
-| Tool | Description |
-|---|---|
-| `list_dependencies` | Parse `gleam.toml` and return structured dependency tables |
-| `list_local_modules` | List `.gleam` files in the project's `src/` tree |
-| `scaffold_gleam_module` | Create a new Gleam module with recursive directory creation |
-| `get_symbol_context` | Extract source context for a local symbol |
-
-### Code Execution
-
-| Tool | Description |
-|---|---|
-| `evaluate_snippet` | Evaluate a Gleam snippet in a sandboxed temporary project |
-
-### Ecosystem Search
-
-| Tool | Description |
-|---|---|
-| `gloogle_search` | Search functions by type signature via [Gloogle](https://gloogle.run) |
-| `search_hex_packages` | Search [Hex.pm](https://hex.pm) for Gleam packages |
-| `get_package_releases` | Get release history for a Hex package |
-
-### Module Introspection
-
-| Tool | Description |
-|---|---|
-| `search_functions` | Search for functions within a package |
-| `search_types` | Search for types within a package |
-| `get_modules` | List modules in a Hex package |
-| `get_module_info` | Get detailed documentation for a specific module |
-
-## Resources
-
-| URI | Description |
-|---|---|
-| `gleam://packages` | Feed of popular Gleam packages from Hex.pm |
-
-## Architecture
-
-- **Pure Gleam on BEAM** — no JavaScript wrappers or Node.js runtime
-- **Erlang FFI** (`mcp_ffi.erl`) for safe dynamic JSON parsing
-- **`tom` TOML parser** for structured project config analysis
-- **`gleam_httpc`** for stateless Hex.pm and Gloogle API calls
-- **stdio transport** — works with Claude Desktop, MCP Inspector, and more
-
-## Dependencies
-
-| Package | Purpose |
-|---|---|
-| `gleam_stdlib` | Core standard library |
-| `gleam_http` / `gleam_httpc` | HTTP client for API calls |
-| `gleam_json` | JSON encoding/decoding |
-| `gleam_erlang` | Erlang interop for CLI wrapping |
-| `simplifile` | Cross-target file system operations |
-| `filepath` | Path manipulation utilities |
-| `tom` | TOML parsing |
+- Commands are launched with an executable and argument list, never through a
+  shell. Project paths containing spaces or shell metacharacters remain data.
+- `gleam check` has a 60-second timeout and a 64 KiB output ceiling.
+- Compiler errors are successful diagnostic results because the compiler ran
+  and answered the query. Missing projects, missing executables, timeouts, HTTP
+  failures, and invalid tool arguments return `isError: true`.
+- The server does not cache project state or remote API responses.
+- This safe-core release deliberately does not format or write source files and
+  does not execute user-provided Gleam snippets.
 
 ## Development
 
 ```sh
-gleam run          # Start the server
-gleam test         # Run tests
-gleam docs build   # Generate HTML docs
-gleam format src test  # Format source
+gleam format --check src test
+gleam test
+gleam run --no-print-progress
 ```
 
-## Keywords
-
-`gleam`, `mcp`, `model-context-protocol`, `beam`, `erlang`, `ai-tools`,
-`llm-tools`, `gleam-lang`, `hex-pm`, `gloogle`, `developer-tools`,
-`code-intelligence`, `gleam-mcp`, `gleam-development`
+Tests cover MCP initialization and dispatch, tool schemas and annotations,
+typed Hex/Gloogle fixtures, recursive project discovery, compiler execution,
+shell-metacharacter paths, timeouts, and output truncation.
 
 ## License
 
-Apache-2.0
+Apache-2.0. See [LICENSE](LICENSE).

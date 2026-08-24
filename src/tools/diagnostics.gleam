@@ -1,53 +1,54 @@
 import gleam/dynamic.{type Dynamic}
+import gleam/int
 import gleam/option.{None, Some}
-import mcp_toolkit_gleam/core/mcp_ffi
+import gleam/result
+import gleam/string
 import mcp_toolkit_gleam/core/protocol as mcp
+import tools/arguments
+import tools/command
+import tools/project
 
-@external(erlang, "cli_ffi", "exec")
-pub fn exec(command: String) -> String
-
-pub fn get_compiler_diagnostics(project_path: String) -> String {
-  // We'll run 'gleam check' and capture output
-  exec("cd " <> project_path <> " && gleam check 2>&1")
-}
-
-pub fn format_project(project_path: String) -> String {
-  exec("cd " <> project_path <> " && gleam format")
+pub fn get_compiler_diagnostics(
+  project_path: String,
+) -> Result(String, String) {
+  use project_path <- result.try(project.validate(project_path))
+  use checked <- result.try(command.run(
+    "gleam",
+    ["check"],
+    project_path,
+    60_000,
+    65_536,
+  ))
+  let command.CommandResult(exit_code, output, truncated) = checked
+  let output = case string.trim(output) {
+    "" if exit_code == 0 -> "Project type-checks successfully."
+    _ -> output
+  }
+  let suffix = case truncated {
+    True -> "\n\n[Output truncated at 64 KiB]"
+    False -> ""
+  }
+  Ok(
+    "gleam check exited with code "
+    <> int.to_string(exit_code)
+    <> "\n\n"
+    <> output
+    <> suffix,
+  )
 }
 
 pub fn get_compiler_diagnostics_handler(
   req: mcp.CallToolRequest(Dynamic),
 ) -> Result(mcp.CallToolResult, String) {
-  let project_path = case req.arguments {
-    Some(args) -> get_string(args, "project_path", ".")
-    None -> "."
-  }
-  let output = get_compiler_diagnostics(project_path)
+  use project_path <- result.try(arguments.optional_string(
+    req.arguments,
+    "project_path",
+    ".",
+  ))
+  use output <- result.try(get_compiler_diagnostics(project_path))
   Ok(mcp.CallToolResult(
     meta: None,
     content: [mcp.TextToolContent(mcp.TextContent(None, output, "text"))],
     is_error: Some(False),
   ))
-}
-
-pub fn format_project_handler(
-  req: mcp.CallToolRequest(Dynamic),
-) -> Result(mcp.CallToolResult, String) {
-  let project_path = case req.arguments {
-    Some(args) -> get_string(args, "project_path", ".")
-    None -> "."
-  }
-  let output = format_project(project_path)
-  Ok(mcp.CallToolResult(
-    meta: None,
-    content: [mcp.TextToolContent(mcp.TextContent(None, output, "text"))],
-    is_error: Some(False),
-  ))
-}
-
-fn get_string(dyn: Dynamic, key: String, default: String) -> String {
-  case mcp_ffi.erl_get_map_value(dyn, key) {
-    Ok(v) -> mcp_ffi.unsafe_coerce(v)
-    Error(_) -> default
-  }
 }

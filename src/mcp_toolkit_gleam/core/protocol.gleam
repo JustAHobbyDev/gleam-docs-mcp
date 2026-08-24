@@ -537,14 +537,47 @@ pub fn list_tools_result_to_json(r: ListToolsResult) -> Json {
 }
 
 fn tool_to_json(t: Tool) -> Json {
-  json.object([
+  let fields = [
     #("name", json.string(t.name)),
-    #("description", case t.description {
-      Some(d) -> json.string(d)
-      None -> json.null()
-    }),
     #("inputSchema", t.input_schema |> unsafe_coerce),
-  ])
+  ]
+  let fields = case t.description {
+    Some(description) -> [#("description", json.string(description)), ..fields]
+    None -> fields
+  }
+  let fields = case t.annotations {
+    Some(annotations) -> [
+      #("annotations", tool_annotations_to_json(annotations)),
+      ..fields
+    ]
+    None -> fields
+  }
+  json.object(fields)
+}
+
+fn tool_annotations_to_json(annotations: ToolAnnotations) -> Json {
+  let fields = []
+  let fields = case annotations.title {
+    Some(value) -> [#("title", json.string(value)), ..fields]
+    None -> fields
+  }
+  let fields = case annotations.read_only_hint {
+    Some(value) -> [#("readOnlyHint", json.bool(value)), ..fields]
+    None -> fields
+  }
+  let fields = case annotations.destructive_hint {
+    Some(value) -> [#("destructiveHint", json.bool(value)), ..fields]
+    None -> fields
+  }
+  let fields = case annotations.idempotent_hint {
+    Some(value) -> [#("idempotentHint", json.bool(value)), ..fields]
+    None -> fields
+  }
+  let fields = case annotations.open_world_hint {
+    Some(value) -> [#("openWorldHint", json.bool(value)), ..fields]
+    None -> fields
+  }
+  json.object(fields)
 }
 
 pub fn call_tool_result_to_json(result: CallToolResult) -> Json {
