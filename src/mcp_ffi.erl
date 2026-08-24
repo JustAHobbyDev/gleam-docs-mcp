@@ -18,7 +18,7 @@ get_map_value(_, _) -> {error, nil}.
 
 map_to_list(Map) when erlang:is_map(Map) -> maps:to_list(Map).
 
-list_to_gleam(List) when erlang:is_list(List) -> List.
+list_to_gleam(Value) -> Value.
 
 read_line() ->
     case io:get_line("") of

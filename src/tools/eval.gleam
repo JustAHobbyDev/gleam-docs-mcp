@@ -14,8 +14,6 @@ fn exec(command: String) -> String
 /// Evaluates a snippet of Gleam code by wrapping it in a main function (if missing),
 /// creating a temporary project, running it, and returning the output.
 pub fn evaluate_snippet(code: String) -> String {
-  let tmp_dir =
-    "/tmp/gleam_eval_" <> string.inspect(simplifile.current_directory())
   // We need a unique-ish ID. For now, just use gleam_eval_temp
   let project_dir = "/tmp/gleam_eval_temp"
 
@@ -79,7 +77,7 @@ pub fn evaluate_snippet_handler(
   let output = evaluate_snippet(code)
   Ok(mcp.CallToolResult(
     meta: None,
-    content: [mcp.TextToolContent(mcp.TextContent(None, "text", output))],
+    content: [mcp.TextToolContent(mcp.TextContent(None, output, "text"))],
     is_error: Some(False),
   ))
 }

@@ -25,7 +25,7 @@ pub fn get_compiler_diagnostics_handler(
   let output = get_compiler_diagnostics(project_path)
   Ok(mcp.CallToolResult(
     meta: None,
-    content: [mcp.TextToolContent(mcp.TextContent(None, "text", output))],
+    content: [mcp.TextToolContent(mcp.TextContent(None, output, "text"))],
     is_error: Some(False),
   ))
 }
@@ -40,7 +40,7 @@ pub fn format_project_handler(
   let output = format_project(project_path)
   Ok(mcp.CallToolResult(
     meta: None,
-    content: [mcp.TextToolContent(mcp.TextContent(None, "text", output))],
+    content: [mcp.TextToolContent(mcp.TextContent(None, output, "text"))],
     is_error: Some(False),
   ))
 }

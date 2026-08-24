@@ -99,7 +99,7 @@ pub fn list_dependencies_handler(
   let output = list_dependencies(project_path)
   Ok(mcp.CallToolResult(
     meta: None,
-    content: [mcp.TextToolContent(mcp.TextContent(None, "text", output))],
+    content: [mcp.TextToolContent(mcp.TextContent(None, output, "text"))],
     is_error: Some(False),
   ))
 }
@@ -114,7 +114,7 @@ pub fn list_local_modules_handler(
   let output = list_modules(project_path, None)
   Ok(mcp.CallToolResult(
     meta: None,
-    content: [mcp.TextToolContent(mcp.TextContent(None, "text", output))],
+    content: [mcp.TextToolContent(mcp.TextContent(None, output, "text"))],
     is_error: Some(False),
   ))
 }

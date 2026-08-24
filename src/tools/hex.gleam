@@ -1,6 +1,7 @@
 import gleam/dynamic.{type Dynamic}
+import gleam/json
 import gleam/list
-import gleam/option.{type Option, None, Some}
+import gleam/option.{None, Some}
 import mcp_toolkit_gleam/core/mcp_ffi
 import mcp_toolkit_gleam/core/protocol as mcp
 import tools/hex_client
@@ -36,7 +37,7 @@ pub fn search_packages_handler(
       Ok(mcp.CallToolResult(
         meta: None,
         content: [
-          mcp.TextToolContent(mcp.TextContent(None, "text", "Error: " <> err)),
+          mcp.TextToolContent(mcp.TextContent(None, "Error: " <> err, "text")),
         ],
         is_error: Some(True),
       ))
@@ -56,11 +57,10 @@ pub fn get_package_releases_handler(
     Ok(dyn) -> {
       // For now, just return the raw JSON string of releases
       let text =
-        "Releases for " <> package_name <> ":\n" <> mcp_ffi.unsafe_coerce(dyn)
-      // Temporary coercion for display
+        "Releases for " <> package_name <> ":\n" <> dynamic_to_string(dyn)
       Ok(mcp.CallToolResult(
         meta: None,
-        content: [mcp.TextToolContent(mcp.TextContent(None, "text", text))],
+        content: [mcp.TextToolContent(mcp.TextContent(None, text, "text"))],
         is_error: Some(False),
       ))
     }
@@ -68,7 +68,7 @@ pub fn get_package_releases_handler(
       Ok(mcp.CallToolResult(
         meta: None,
         content: [
-          mcp.TextToolContent(mcp.TextContent(None, "text", "Error: " <> err)),
+          mcp.TextToolContent(mcp.TextContent(None, "Error: " <> err, "text")),
         ],
         is_error: Some(True),
       ))
@@ -86,10 +86,10 @@ pub fn get_modules_handler(
   case hex_client.get_package_releases(package_name) {
     Ok(dyn) -> {
       let text =
-        "Modules for " <> package_name <> ":\n" <> mcp_ffi.unsafe_coerce(dyn)
+        "Modules for " <> package_name <> ":\n" <> dynamic_to_string(dyn)
       Ok(mcp.CallToolResult(
         meta: None,
-        content: [mcp.TextToolContent(mcp.TextContent(None, "text", text))],
+        content: [mcp.TextToolContent(mcp.TextContent(None, text, "text"))],
         is_error: Some(False),
       ))
     }
@@ -97,7 +97,7 @@ pub fn get_modules_handler(
       Ok(mcp.CallToolResult(
         meta: None,
         content: [
-          mcp.TextToolContent(mcp.TextContent(None, "text", "Error: " <> err)),
+          mcp.TextToolContent(mcp.TextContent(None, "Error: " <> err, "text")),
         ],
         is_error: Some(True),
       ))
@@ -119,7 +119,7 @@ pub fn get_module_info_handler(
   let text = "Module documentation for " <> package_name <> "/" <> module_name
   Ok(mcp.CallToolResult(
     meta: None,
-    content: [mcp.TextToolContent(mcp.TextContent(None, "text", text))],
+    content: [mcp.TextToolContent(mcp.TextContent(None, text, "text"))],
     is_error: Some(False),
   ))
 }
@@ -138,7 +138,7 @@ pub fn search_functions_handler(
   let text = "Searching functions in " <> package_name <> " for: " <> query
   Ok(mcp.CallToolResult(
     meta: None,
-    content: [mcp.TextToolContent(mcp.TextContent(None, "text", text))],
+    content: [mcp.TextToolContent(mcp.TextContent(None, text, "text"))],
     is_error: Some(False),
   ))
 }
@@ -157,7 +157,7 @@ pub fn search_types_handler(
   let text = "Searching types in " <> package_name <> " for: " <> query
   Ok(mcp.CallToolResult(
     meta: None,
-    content: [mcp.TextToolContent(mcp.TextContent(None, "text", text))],
+    content: [mcp.TextToolContent(mcp.TextContent(None, text, "text"))],
     is_error: Some(False),
   ))
 }
@@ -167,4 +167,10 @@ fn get_string(dyn: Dynamic, key: String, default: String) -> String {
     Ok(v) -> mcp_ffi.unsafe_coerce(v)
     Error(_) -> default
   }
+}
+
+fn dynamic_to_string(value: Dynamic) -> String {
+  value
+  |> mcp_ffi.unsafe_coerce
+  |> json.to_string
 }

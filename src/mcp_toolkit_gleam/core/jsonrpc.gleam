@@ -122,12 +122,6 @@ fn is_binary(v: Dynamic) -> Bool
 @external(erlang, "mcp_ffi", "is_integer")
 fn is_integer(v: Dynamic) -> Bool
 
-@external(erlang, "mcp_ffi", "is_boolean")
-fn is_boolean(v: Dynamic) -> Bool
-
-@external(erlang, "mcp_ffi", "is_list")
-fn is_list(v: Dynamic) -> Bool
-
 @external(erlang, "mcp_ffi", "is_map")
 fn is_map(v: Dynamic) -> Bool
 

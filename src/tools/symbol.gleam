@@ -1,9 +1,6 @@
 import filepath
 import gleam/dynamic.{type Dynamic}
-import gleam/http/request
-import gleam/httpc
-import gleam/list
-import gleam/option.{type Option, None, Some}
+import gleam/option.{None, Some}
 import gleam/string
 import mcp_toolkit_gleam/core/mcp_ffi
 import mcp_toolkit_gleam/core/protocol as mcp
@@ -65,7 +62,7 @@ pub fn get_symbol_context_handler(
   let output = get_symbol_context(project_path, module_name, symbol_name)
   Ok(mcp.CallToolResult(
     meta: None,
-    content: [mcp.TextToolContent(mcp.TextContent(None, "text", output))],
+    content: [mcp.TextToolContent(mcp.TextContent(None, output, "text"))],
     is_error: Some(False),
   ))
 }

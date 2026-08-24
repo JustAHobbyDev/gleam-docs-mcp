@@ -17,6 +17,11 @@ import tools/symbol
 fn erl_read_line() -> Result(String, Nil)
 
 pub fn main() {
+  build_server()
+  |> loop
+}
+
+pub fn build_server() -> server.Server {
   let server_builder =
     server.new("native-docs-mcp", "0.1.0")
     |> server.description(
@@ -29,7 +34,15 @@ pub fn main() {
       mcp.Tool(
         name: "get_compiler_diagnostics",
         description: Some("Run gleam check on a local project"),
-        input_schema: mcp_ffi.unsafe_coerce(None),
+        input_schema: object_schema(
+          [
+            string_property(
+              "project_path",
+              "Path to the Gleam project; defaults to the current directory",
+            ),
+          ],
+          [],
+        ),
         annotations: None,
       ),
       diagnostics.get_compiler_diagnostics_handler,
@@ -38,7 +51,15 @@ pub fn main() {
       mcp.Tool(
         name: "format_project",
         description: Some("Run gleam format on a local project"),
-        input_schema: mcp_ffi.unsafe_coerce(None),
+        input_schema: object_schema(
+          [
+            string_property(
+              "project_path",
+              "Path to the Gleam project; defaults to the current directory",
+            ),
+          ],
+          [],
+        ),
         annotations: None,
       ),
       diagnostics.format_project_handler,
@@ -47,7 +68,15 @@ pub fn main() {
       mcp.Tool(
         name: "list_dependencies",
         description: Some("List dependencies from gleam.toml"),
-        input_schema: mcp_ffi.unsafe_coerce(None),
+        input_schema: object_schema(
+          [
+            string_property(
+              "project_path",
+              "Path to the Gleam project; defaults to the current directory",
+            ),
+          ],
+          [],
+        ),
         annotations: None,
       ),
       discovery.list_dependencies_handler,
@@ -56,7 +85,15 @@ pub fn main() {
       mcp.Tool(
         name: "list_local_modules",
         description: Some("List modules in local src directory"),
-        input_schema: mcp_ffi.unsafe_coerce(None),
+        input_schema: object_schema(
+          [
+            string_property(
+              "project_path",
+              "Path to the Gleam project; defaults to the current directory",
+            ),
+          ],
+          [],
+        ),
         annotations: None,
       ),
       discovery.list_local_modules_handler,
@@ -67,7 +104,20 @@ pub fn main() {
         description: Some(
           "Safely scaffold a new Gleam module in a project's src directory",
         ),
-        input_schema: mcp_ffi.unsafe_coerce(None),
+        input_schema: object_schema(
+          [
+            string_property(
+              "project_path",
+              "Path to the Gleam project; defaults to the current directory",
+            ),
+            string_property(
+              "module_name",
+              "Module path relative to src, without the .gleam suffix",
+            ),
+            string_property("content", "Initial Gleam source for the module"),
+          ],
+          ["module_name"],
+        ),
         annotations: None,
       ),
       scaffold.scaffold_module_handler,
@@ -76,7 +126,17 @@ pub fn main() {
       mcp.Tool(
         name: "get_symbol_context",
         description: Some("Get source context for a local symbol"),
-        input_schema: mcp_ffi.unsafe_coerce(None),
+        input_schema: object_schema(
+          [
+            string_property(
+              "project_path",
+              "Path to the Gleam project; defaults to the current directory",
+            ),
+            string_property("module_name", "Local Gleam module name"),
+            string_property("symbol_name", "Symbol to locate in the module"),
+          ],
+          ["module_name", "symbol_name"],
+        ),
         annotations: None,
       ),
       symbol.get_symbol_context_handler,
@@ -87,7 +147,12 @@ pub fn main() {
         description: Some(
           "Evaluate a Gleam code snippet in a sandboxed environment",
         ),
-        input_schema: mcp_ffi.unsafe_coerce(None),
+        input_schema: object_schema(
+          [
+            string_property("code", "Gleam source code to evaluate"),
+          ],
+          ["code"],
+        ),
         annotations: None,
       ),
       eval.evaluate_snippet_handler,
@@ -98,7 +163,15 @@ pub fn main() {
         description: Some(
           "Search for Gleam functions by type signature or name via Gloogle",
         ),
-        input_schema: mcp_ffi.unsafe_coerce(None),
+        input_schema: object_schema(
+          [
+            string_property(
+              "query",
+              "Function name or type signature to search for",
+            ),
+          ],
+          ["query"],
+        ),
         annotations: None,
       ),
       global.gloogle_search_handler,
@@ -107,7 +180,12 @@ pub fn main() {
       mcp.Tool(
         name: "search_hex_packages",
         description: Some("Search Hex.pm for Gleam packages"),
-        input_schema: mcp_ffi.unsafe_coerce(None),
+        input_schema: object_schema(
+          [
+            string_property("query", "Hex package search query"),
+          ],
+          ["query"],
+        ),
         annotations: None,
       ),
       hex.search_packages_handler,
@@ -116,7 +194,12 @@ pub fn main() {
       mcp.Tool(
         name: "get_package_releases",
         description: Some("Get releases for a Hex package"),
-        input_schema: mcp_ffi.unsafe_coerce(None),
+        input_schema: object_schema(
+          [
+            string_property("package_name", "Hex package name"),
+          ],
+          ["package_name"],
+        ),
         annotations: None,
       ),
       hex.get_package_releases_handler,
@@ -125,7 +208,13 @@ pub fn main() {
       mcp.Tool(
         name: "search_functions",
         description: Some("Search for functions in a Gleam package"),
-        input_schema: mcp_ffi.unsafe_coerce(None),
+        input_schema: object_schema(
+          [
+            string_property("package_name", "Hex package name"),
+            string_property("query", "Function-name search query"),
+          ],
+          ["package_name", "query"],
+        ),
         annotations: None,
       ),
       hex.search_functions_handler,
@@ -134,7 +223,13 @@ pub fn main() {
       mcp.Tool(
         name: "search_types",
         description: Some("Search for types in a Gleam package"),
-        input_schema: mcp_ffi.unsafe_coerce(None),
+        input_schema: object_schema(
+          [
+            string_property("package_name", "Hex package name"),
+            string_property("query", "Type-name search query"),
+          ],
+          ["package_name", "query"],
+        ),
         annotations: None,
       ),
       hex.search_types_handler,
@@ -143,7 +238,12 @@ pub fn main() {
       mcp.Tool(
         name: "get_modules",
         description: Some("List modules in a Hex package"),
-        input_schema: mcp_ffi.unsafe_coerce(None),
+        input_schema: object_schema(
+          [
+            string_property("package_name", "Hex package name"),
+          ],
+          ["package_name"],
+        ),
         annotations: None,
       ),
       hex.get_modules_handler,
@@ -152,7 +252,13 @@ pub fn main() {
       mcp.Tool(
         name: "get_module_info",
         description: Some("Get detailed documentation for a module"),
-        input_schema: mcp_ffi.unsafe_coerce(None),
+        input_schema: object_schema(
+          [
+            string_property("package_name", "Hex package name"),
+            string_property("module_name", "Module name"),
+          ],
+          ["package_name", "module_name"],
+        ),
         annotations: None,
       ),
       hex.get_module_info_handler,
@@ -169,10 +275,30 @@ pub fn main() {
       popular_packages.popular_packages_handler,
     )
 
-  let mcp_server = server.build(server_builder)
+  server.build(server_builder)
+}
 
-  // Custom simple stdio loop since transport module is incomplete
-  loop(mcp_server)
+fn string_property(name: String, description: String) -> #(String, json.Json) {
+  #(
+    name,
+    json.object([
+      #("type", json.string("string")),
+      #("description", json.string(description)),
+    ]),
+  )
+}
+
+fn object_schema(
+  properties: List(#(String, json.Json)),
+  required: List(String),
+) {
+  json.object([
+    #("type", json.string("object")),
+    #("properties", json.object(properties)),
+    #("required", json.array(required, json.string)),
+    #("additionalProperties", json.bool(False)),
+  ])
+  |> mcp_ffi.unsafe_coerce
 }
 
 fn loop(mcp_server) {

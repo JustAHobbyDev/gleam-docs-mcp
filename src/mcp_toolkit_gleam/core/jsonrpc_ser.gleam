@@ -1,10 +1,6 @@
-import gleam/dynamic.{type Dynamic}
 import gleam/json.{type Json}
-import gleam/list
 import gleam/option.{type Option, None, Some}
-import gleam/result
 import mcp_toolkit_gleam/core/jsonrpc
-import mcp_toolkit_gleam/core/protocol as mcp
 
 pub fn response(result: Json, id: jsonrpc.Id) -> Json {
   json.object([

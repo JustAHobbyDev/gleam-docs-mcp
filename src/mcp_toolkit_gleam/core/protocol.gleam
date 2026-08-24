@@ -40,6 +40,23 @@ pub type CallToolRequest(arguments) {
   CallToolRequest(name: String, arguments: Option(arguments))
 }
 
+pub fn decode_call_tool_request(
+  data: Dynamic,
+) -> Result(CallToolRequest(Dynamic), List(DecodeError)) {
+  case is_map(data) {
+    True -> {
+      use name <- result.try(get_map_string(data, "name"))
+      let arguments = case erl_get_map_value(data, "arguments") {
+        Ok(value) -> Some(value)
+        Error(_) -> None
+      }
+      Ok(CallToolRequest(name:, arguments:))
+    }
+    False ->
+      Error([DecodeError(expected: "Map", found: "wrong type", path: [])])
+  }
+}
+
 pub type ToolResultContent {
   TextToolContent(TextContent)
   ImageToolContent(ImageContent)
@@ -475,9 +492,26 @@ pub type UnsubscribeRequest {
 
 // JSON Encoders
 pub fn initialize_result_to_json(r: InitializeResult) -> Json {
-  json.object([
+  let capabilities = []
+  let capabilities = case r.capabilities.tools {
+    Some(_) -> [#("tools", json.object([])), ..capabilities]
+    None -> capabilities
+  }
+  let capabilities = case r.capabilities.resources {
+    Some(_) -> [#("resources", json.object([])), ..capabilities]
+    None -> capabilities
+  }
+  let capabilities = case r.capabilities.prompts {
+    Some(_) -> [#("prompts", json.object([])), ..capabilities]
+    None -> capabilities
+  }
+  let capabilities = case r.capabilities.logging {
+    Some(_) -> [#("logging", json.object([])), ..capabilities]
+    None -> capabilities
+  }
+  let fields = [
     #("protocolVersion", json.string(r.protocol_version)),
-    #("capabilities", json.object([])),
+    #("capabilities", json.object(capabilities)),
     #(
       "serverInfo",
       json.object([
@@ -485,7 +519,15 @@ pub fn initialize_result_to_json(r: InitializeResult) -> Json {
         #("version", json.string(r.server_info.version)),
       ]),
     ),
-  ])
+  ]
+  let fields = case r.instructions {
+    Some(instructions) -> [
+      #("instructions", json.string(instructions)),
+      ..fields
+    ]
+    None -> fields
+  }
+  json.object(fields)
 }
 
 pub fn list_tools_result_to_json(r: ListToolsResult) -> Json {
@@ -503,6 +545,71 @@ fn tool_to_json(t: Tool) -> Json {
     }),
     #("inputSchema", t.input_schema |> unsafe_coerce),
   ])
+}
+
+pub fn call_tool_result_to_json(result: CallToolResult) -> Json {
+  let fields = [
+    #("content", json.array(result.content, tool_result_content_to_json)),
+  ]
+  let fields = case result.is_error {
+    Some(is_error) -> [#("isError", json.bool(is_error)), ..fields]
+    None -> fields
+  }
+  json.object(fields)
+}
+
+fn tool_result_content_to_json(content: ToolResultContent) -> Json {
+  case content {
+    TextToolContent(TextContent(_, text, type_)) ->
+      json.object([
+        #("type", json.string(type_)),
+        #("text", json.string(text)),
+      ])
+    ImageToolContent(ImageContent(_, data, mime_type, type_)) ->
+      json.object([
+        #("type", json.string(type_)),
+        #("data", json.string(data)),
+        #("mimeType", json.string(mime_type)),
+      ])
+    AudioToolContent(AudioContent(_, data, mime_type, _)) ->
+      json.object([
+        #("type", json.string("audio")),
+        #("data", json.string(data)),
+        #("mimeType", json.string(mime_type)),
+      ])
+    ResourceToolContent(EmbeddedResource(_, resource, type_)) ->
+      json.object([
+        #("type", json.string(type_)),
+        #("resource", resource_contents_to_json(resource)),
+      ])
+  }
+}
+
+fn resource_contents_to_json(contents: ResourceContents) -> Json {
+  case contents {
+    TextResource(TextResourceContents(mime_type, text, uri)) -> {
+      let fields = [
+        #("uri", json.string(uri)),
+        #("text", json.string(text)),
+      ]
+      let fields = case mime_type {
+        Some(value) -> [#("mimeType", json.string(value)), ..fields]
+        None -> fields
+      }
+      json.object(fields)
+    }
+    BlobResource(BlobResourceContents(blob, mime_type, uri)) -> {
+      let fields = [
+        #("uri", json.string(uri)),
+        #("blob", json.string(blob)),
+      ]
+      let fields = case mime_type {
+        Some(value) -> [#("mimeType", json.string(value)), ..fields]
+        None -> fields
+      }
+      json.object(fields)
+    }
+  }
 }
 
 // FFI

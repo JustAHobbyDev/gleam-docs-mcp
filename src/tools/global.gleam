@@ -28,7 +28,7 @@ pub fn gloogle_search_handler(
   let output = gloogle_search(query)
   Ok(mcp.CallToolResult(
     meta: None,
-    content: [mcp.TextToolContent(mcp.TextContent(None, "text", output))],
+    content: [mcp.TextToolContent(mcp.TextContent(None, output, "text"))],
     is_error: Some(string.starts_with(output, "Error")),
   ))
 }

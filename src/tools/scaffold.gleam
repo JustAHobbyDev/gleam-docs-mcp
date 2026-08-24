@@ -56,7 +56,7 @@ pub fn scaffold_module_handler(
   let output = scaffold_module(project_path, module_name, content)
   Ok(mcp.CallToolResult(
     meta: None,
-    content: [mcp.TextToolContent(mcp.TextContent(None, "text", output))],
+    content: [mcp.TextToolContent(mcp.TextContent(None, output, "text"))],
     is_error: Some(string.starts_with(output, "Error")),
   ))
 }

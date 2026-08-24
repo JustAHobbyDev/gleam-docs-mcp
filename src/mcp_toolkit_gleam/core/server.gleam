@@ -5,7 +5,6 @@ import gleam/list
 import gleam/result
 import mcp_toolkit_gleam/core/jsonrpc
 import mcp_toolkit_gleam/core/jsonrpc_ser
-import mcp_toolkit_gleam/core/mcp_ffi
 import mcp_toolkit_gleam/core/method
 
 import gleam/option.{type Option, None, Some}
@@ -338,6 +337,31 @@ fn handle_request(
       })
     }
 
+    m if m == method.tools_call -> {
+      case mcp.decode_call_tool_request(params) {
+        Ok(request) ->
+          case call_tool(server, request) {
+            Ok(response) ->
+              Ok(
+                response
+                |> mcp.call_tool_result_to_json
+                |> jsonrpc_ser.response(id),
+              )
+            Error(mcp.McpApplicationError(message)) ->
+              Error(jsonrpc_ser.error_response(-32_602, message, None, id))
+            Error(_) ->
+              Error(jsonrpc_ser.error_response(
+                -32_603,
+                "Tool execution failed",
+                None,
+                id,
+              ))
+          }
+        Error(_) ->
+          Error(jsonrpc_ser.error_response(-32_602, "Invalid params", None, id))
+      }
+    }
+
     _ -> {
       Error(jsonrpc_ser.error_response(-32_601, "Method not found", None, id))
     }
@@ -373,4 +397,15 @@ pub fn list_tools(
     dict.values(server.tools)
     |> list.map(fn(t) { t.tool })
   Ok(mcp.ListToolsResult(tools:, next_cursor: None, meta: None))
+}
+
+pub fn call_tool(
+  server: Server,
+  request: mcp.CallToolRequest(Dynamic),
+) -> Result(mcp.CallToolResult, mcp.McpError) {
+  case dict.get(server.tools, request.name) {
+    Ok(tool) -> tool.handler(request)
+    Error(_) ->
+      Error(mcp.McpApplicationError("Tool not found: " <> request.name))
+  }
 }
