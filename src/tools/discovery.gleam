@@ -1,16 +1,19 @@
 import filepath
 import gleam/dynamic.{type Dynamic}
 import gleam/list
-import gleam/option.{type Option, None, Some}
+import gleam/option.{None, Some}
+import gleam/result
 import gleam/string
-import mcp_toolkit_gleam/core/mcp_ffi
 import mcp_toolkit_gleam/core/protocol as mcp
 import simplifile
+import tools/arguments
+import tools/project
 
 import gleam/dict
 import tom
 
-pub fn list_dependencies(project_path: String) -> String {
+pub fn list_dependencies(project_path: String) -> Result(String, String) {
+  use project_path <- result.try(project.validate(project_path))
   let toml_path = filepath.join(project_path, "gleam.toml")
   case simplifile.read(toml_path) {
     Ok(content) -> {
@@ -24,20 +27,25 @@ pub fn list_dependencies(project_path: String) -> String {
             Ok(d) -> d
             Error(_) -> dict.new()
           }
-          "### Project Dependencies\n"
-          <> format_deps(deps)
-          <> "\n### Dev Dependencies\n"
-          <> format_deps(dev_deps)
+          Ok(
+            "### Project Dependencies\n"
+            <> format_deps(deps)
+            <> "\n### Dev Dependencies\n"
+            <> format_deps(dev_deps),
+          )
         }
-        Error(_) -> "Error: Could not parse TOML syntax in " <> toml_path
+        Error(_) -> Error("Could not parse TOML syntax in " <> toml_path)
       }
     }
-    Error(_) -> "Error: Could not read gleam.toml at " <> toml_path
+    Error(_) -> Error("Could not read gleam.toml at " <> toml_path)
   }
 }
 
 fn format_deps(d: dict.Dict(String, tom.Toml)) -> String {
-  let entries = dict.to_list(d)
+  let entries =
+    d
+    |> dict.to_list
+    |> list.sort(fn(a, b) { string.compare(a.0, b.0) })
   case entries {
     [] -> "No dependencies found.\n"
     _ ->
@@ -47,7 +55,10 @@ fn format_deps(d: dict.Dict(String, tom.Toml)) -> String {
           let val_str = case toml_val {
             tom.String(s) -> s
             tom.InlineTable(t) -> {
-              let inner_entries = dict.to_list(t)
+              let inner_entries =
+                t
+                |> dict.to_list
+                |> list.sort(fn(a, b) { string.compare(a.0, b.0) })
               "{"
               <> string.join(
                 list.map(inner_entries, fn(ip) {
@@ -71,32 +82,40 @@ fn format_deps(d: dict.Dict(String, tom.Toml)) -> String {
   }
 }
 
-pub fn list_modules(
-  project_path: String,
-  package_name: Option(String),
-) -> String {
-  let relative_src = case package_name {
-    Some(pkg) -> filepath.join("build/packages", pkg) |> filepath.join("src")
-    None -> "src"
-  }
-  let search_path = filepath.join(project_path, relative_src)
+pub fn list_modules(project_path: String) -> Result(String, String) {
+  use project_path <- result.try(project.validate(project_path))
+  let search_path = filepath.join(project_path, "src")
 
   case simplifile.get_files(search_path) {
     Ok(files) -> {
-      "### Modules in " <> search_path <> "\n" <> string.join(files, "\n")
+      let prefix_length = string.length(search_path) + 1
+      let modules =
+        files
+        |> list.filter(string.ends_with(_, ".gleam"))
+        |> list.map(fn(path) {
+          path
+          |> string.drop_start(prefix_length)
+          |> filepath.strip_extension
+        })
+        |> list.sort(string.compare)
+      Ok(case modules {
+        [] -> "No Gleam modules found in " <> search_path
+        _ -> "### Local Modules\n" <> string.join(modules, "\n")
+      })
     }
-    Error(_) -> "Error: Could not list files in " <> search_path
+    Error(_) -> Error("Could not list files in " <> search_path)
   }
 }
 
 pub fn list_dependencies_handler(
   req: mcp.CallToolRequest(Dynamic),
 ) -> Result(mcp.CallToolResult, String) {
-  let project_path = case req.arguments {
-    Some(args) -> get_string(args, "project_path", ".")
-    None -> "."
-  }
-  let output = list_dependencies(project_path)
+  use project_path <- result.try(arguments.optional_string(
+    req.arguments,
+    "project_path",
+    ".",
+  ))
+  use output <- result.try(list_dependencies(project_path))
   Ok(mcp.CallToolResult(
     meta: None,
     content: [mcp.TextToolContent(mcp.TextContent(None, output, "text"))],
@@ -107,21 +126,15 @@ pub fn list_dependencies_handler(
 pub fn list_local_modules_handler(
   req: mcp.CallToolRequest(Dynamic),
 ) -> Result(mcp.CallToolResult, String) {
-  let project_path = case req.arguments {
-    Some(args) -> get_string(args, "project_path", ".")
-    None -> "."
-  }
-  let output = list_modules(project_path, None)
+  use project_path <- result.try(arguments.optional_string(
+    req.arguments,
+    "project_path",
+    ".",
+  ))
+  use output <- result.try(list_modules(project_path))
   Ok(mcp.CallToolResult(
     meta: None,
     content: [mcp.TextToolContent(mcp.TextContent(None, output, "text"))],
     is_error: Some(False),
   ))
-}
-
-fn get_string(dyn: Dynamic, key: String, default: String) -> String {
-  case mcp_ffi.erl_get_map_value(dyn, key) {
-    Ok(v) -> mcp_ffi.unsafe_coerce(v)
-    Error(_) -> default
-  }
 }

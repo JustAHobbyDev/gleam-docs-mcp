@@ -1,176 +1,115 @@
 import gleam/dynamic.{type Dynamic}
-import gleam/json
 import gleam/list
-import gleam/option.{None, Some}
-import mcp_toolkit_gleam/core/mcp_ffi
+import gleam/option.{type Option, None, Some}
+import gleam/result
+import gleam/string
 import mcp_toolkit_gleam/core/protocol as mcp
+import tools/arguments
 import tools/hex_client
 
 pub fn search_packages_handler(
   req: mcp.CallToolRequest(Dynamic),
 ) -> Result(mcp.CallToolResult, String) {
-  let query = case req.arguments {
-    Some(args) -> get_string(args, "query", "")
-    None -> ""
+  use query <- result.try(arguments.query(req.arguments, "query"))
+  use packages <- result.try(hex_client.search_packages(query))
+  let packages = list.take(packages, 10)
+  let text = case packages {
+    [] -> "No Hex packages found for `" <> query <> "`."
+    _ ->
+      packages
+      |> list.map(format_package)
+      |> string.join("\n\n")
   }
-
-  case hex_client.search_packages(query) {
-    Ok(packages) -> {
-      let content =
-        packages
-        |> list.map(fn(p: hex_client.HexPackage) {
-          mcp.TextToolContent(mcp.TextContent(
-            annotations: None,
-            type_: "text",
-            text: p.name
-              <> " ("
-              <> p.version
-              <> ")\n"
-              <> p.description
-              <> "\nDocs: "
-              <> option.unwrap(p.docs_url, "N/A"),
-          ))
-        })
-      Ok(mcp.CallToolResult(meta: None, content: content, is_error: Some(False)))
-    }
-    Error(err) -> {
-      Ok(mcp.CallToolResult(
-        meta: None,
-        content: [
-          mcp.TextToolContent(mcp.TextContent(None, "Error: " <> err, "text")),
-        ],
-        is_error: Some(True),
-      ))
-    }
-  }
+  Ok(text_result(text))
 }
 
 pub fn get_package_releases_handler(
   req: mcp.CallToolRequest(Dynamic),
 ) -> Result(mcp.CallToolResult, String) {
-  let package_name = case req.arguments {
-    Some(args) -> get_string(args, "package_name", "")
-    None -> ""
+  use package_name <- result.try(arguments.query(req.arguments, "package_name"))
+  use _ <- result.try(validate_package_name(package_name))
+  use releases <- result.try(hex_client.get_package_releases(package_name))
+  let releases = list.take(releases, 20)
+  let text = case releases {
+    [] -> "No releases found for `" <> package_name <> "`."
+    _ ->
+      "### Releases for `"
+      <> package_name
+      <> "`\n"
+      <> {
+        releases
+        |> list.map(fn(release) {
+          let status = case release.retired {
+            True -> " — retired"
+            False -> ""
+          }
+          "- `" <> release.version <> "` — " <> release.inserted_at <> status
+        })
+        |> string.join("\n")
+      }
   }
+  Ok(text_result(text))
+}
 
-  case hex_client.get_package_releases(package_name) {
-    Ok(dyn) -> {
-      // For now, just return the raw JSON string of releases
-      let text =
-        "Releases for " <> package_name <> ":\n" <> dynamic_to_string(dyn)
-      Ok(mcp.CallToolResult(
-        meta: None,
-        content: [mcp.TextToolContent(mcp.TextContent(None, text, "text"))],
-        is_error: Some(False),
-      ))
-    }
-    Error(err) -> {
-      Ok(mcp.CallToolResult(
-        meta: None,
-        content: [
-          mcp.TextToolContent(mcp.TextContent(None, "Error: " <> err, "text")),
-        ],
-        is_error: Some(True),
-      ))
-    }
+fn format_package(package: hex_client.HexPackage) -> String {
+  let links =
+    [
+      link("Hex", Some(package.html_url)),
+      link("Docs", package.docs_url),
+      link("Repository", package.repository_url),
+    ]
+    |> list.filter_map(fn(item) {
+      case item {
+        Some(value) -> Ok(value)
+        None -> Error(Nil)
+      }
+    })
+    |> string.join(" · ")
+  "### `"
+  <> package.name
+  <> "` "
+  <> package.version
+  <> "\n"
+  <> package.description
+  <> case links {
+    "" -> ""
+    _ -> "\n" <> links
   }
 }
 
-pub fn get_modules_handler(
-  req: mcp.CallToolRequest(Dynamic),
-) -> Result(mcp.CallToolResult, String) {
-  let package_name = case req.arguments {
-    Some(args) -> get_string(args, "package_name", "")
-    None -> ""
-  }
-  case hex_client.get_package_releases(package_name) {
-    Ok(dyn) -> {
-      let text =
-        "Modules for " <> package_name <> ":\n" <> dynamic_to_string(dyn)
-      Ok(mcp.CallToolResult(
-        meta: None,
-        content: [mcp.TextToolContent(mcp.TextContent(None, text, "text"))],
-        is_error: Some(False),
-      ))
-    }
-    Error(err) ->
-      Ok(mcp.CallToolResult(
-        meta: None,
-        content: [
-          mcp.TextToolContent(mcp.TextContent(None, "Error: " <> err, "text")),
-        ],
-        is_error: Some(True),
-      ))
+fn link(label: String, url: Option(String)) -> Option(String) {
+  case url {
+    Some("") | None -> None
+    Some(url) -> Some("[" <> label <> "](" <> url <> ")")
   }
 }
 
-pub fn get_module_info_handler(
-  req: mcp.CallToolRequest(Dynamic),
-) -> Result(mcp.CallToolResult, String) {
-  let package_name = case req.arguments {
-    Some(args) -> get_string(args, "package_name", "")
-    None -> ""
+fn validate_package_name(package_name: String) -> Result(Nil, String) {
+  let valid =
+    package_name
+    |> string.to_graphemes
+    |> list.all(fn(character) {
+      let lower = string.lowercase(character)
+      character == lower
+      && {
+        case character {
+          "_" -> True
+          _ ->
+            string.contains("abcdefghijklmnopqrstuvwxyz0123456789", character)
+        }
+      }
+    })
+  case valid {
+    True -> Ok(Nil)
+    False ->
+      Error("'package_name' may contain only lowercase letters, digits, and _")
   }
-  let module_name = case req.arguments {
-    Some(args) -> get_string(args, "module_name", "")
-    None -> ""
-  }
-  // Placeholder: In a real implementation this would fetch from HexDocs
-  let text = "Module documentation for " <> package_name <> "/" <> module_name
-  Ok(mcp.CallToolResult(
+}
+
+fn text_result(text: String) -> mcp.CallToolResult {
+  mcp.CallToolResult(
     meta: None,
     content: [mcp.TextToolContent(mcp.TextContent(None, text, "text"))],
     is_error: Some(False),
-  ))
-}
-
-pub fn search_functions_handler(
-  req: mcp.CallToolRequest(Dynamic),
-) -> Result(mcp.CallToolResult, String) {
-  let package_name = case req.arguments {
-    Some(args) -> get_string(args, "package_name", "")
-    None -> ""
-  }
-  let query = case req.arguments {
-    Some(args) -> get_string(args, "query", "")
-    None -> ""
-  }
-  let text = "Searching functions in " <> package_name <> " for: " <> query
-  Ok(mcp.CallToolResult(
-    meta: None,
-    content: [mcp.TextToolContent(mcp.TextContent(None, text, "text"))],
-    is_error: Some(False),
-  ))
-}
-
-pub fn search_types_handler(
-  req: mcp.CallToolRequest(Dynamic),
-) -> Result(mcp.CallToolResult, String) {
-  let package_name = case req.arguments {
-    Some(args) -> get_string(args, "package_name", "")
-    None -> ""
-  }
-  let query = case req.arguments {
-    Some(args) -> get_string(args, "query", "")
-    None -> ""
-  }
-  let text = "Searching types in " <> package_name <> " for: " <> query
-  Ok(mcp.CallToolResult(
-    meta: None,
-    content: [mcp.TextToolContent(mcp.TextContent(None, text, "text"))],
-    is_error: Some(False),
-  ))
-}
-
-fn get_string(dyn: Dynamic, key: String, default: String) -> String {
-  case mcp_ffi.erl_get_map_value(dyn, key) {
-    Ok(v) -> mcp_ffi.unsafe_coerce(v)
-    Error(_) -> default
-  }
-}
-
-fn dynamic_to_string(value: Dynamic) -> String {
-  value
-  |> mcp_ffi.unsafe_coerce
-  |> json.to_string
+  )
 }

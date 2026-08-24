@@ -404,7 +404,19 @@ pub fn call_tool(
   request: mcp.CallToolRequest(Dynamic),
 ) -> Result(mcp.CallToolResult, mcp.McpError) {
   case dict.get(server.tools, request.name) {
-    Ok(tool) -> tool.handler(request)
+    Ok(tool) ->
+      case tool.handler(request) {
+        Ok(result) -> Ok(result)
+        Error(mcp.McpApplicationError(message)) ->
+          Ok(mcp.CallToolResult(
+            meta: None,
+            content: [
+              mcp.TextToolContent(mcp.TextContent(None, message, "text")),
+            ],
+            is_error: Some(True),
+          ))
+        Error(error) -> Error(error)
+      }
     Error(_) ->
       Error(mcp.McpApplicationError("Tool not found: " <> request.name))
   }
