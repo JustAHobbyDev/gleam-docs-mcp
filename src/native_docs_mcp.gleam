@@ -4,6 +4,7 @@ import gleam/option.{None, Some}
 import mcp_toolkit_gleam/core/mcp_ffi
 import mcp_toolkit_gleam/core/protocol as mcp
 import mcp_toolkit_gleam/core/server
+import tools/dependency_api
 import tools/diagnostics
 import tools/discovery
 import tools/global
@@ -58,6 +59,33 @@ pub fn build_server() -> server.Server {
       annotations: Some(read_only_annotations("List local modules", False)),
     ),
     discovery.list_local_modules_handler,
+  )
+  |> server.add_tool(
+    mcp.Tool(
+      name: "get_dependency_api",
+      description: Some(
+        "Read the public API (pub fn/type/const signatures and doc comments) of a module in a dependency already fetched under build/packages, or list the dependency's modules when no module is given. Never fetches.",
+      ),
+      input_schema: object_schema(
+        [
+          string_property(
+            "project_path",
+            "Path to the Gleam project; defaults to the server working directory",
+          ),
+          string_property(
+            "dependency",
+            "Package name as it appears in manifest.toml, e.g. mist",
+          ),
+          string_property(
+            "module",
+            "Module name within the package, e.g. gleam/http/request; omit to list modules",
+          ),
+        ],
+        ["dependency"],
+      ),
+      annotations: Some(read_only_annotations("Get dependency API", False)),
+    ),
+    dependency_api.get_dependency_api_handler,
   )
   |> server.add_tool(
     mcp.Tool(

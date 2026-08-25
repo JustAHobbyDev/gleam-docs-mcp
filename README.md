@@ -15,13 +15,24 @@ small read-oriented tool set with explicit MCP safety annotations.
 | `get_compiler_diagnostics` | Run `gleam check` in a local project and return its diagnostics |
 | `list_dependencies` | Read dependencies and dev dependencies from `gleam.toml` |
 | `list_local_modules` | Recursively list Gleam modules under `src/` |
+| `get_dependency_api` | Read public signatures and doc comments of a module from a dependency fetched under `build/packages/`, or list its modules |
 | `gloogle_search` | Search Gloogle by name or type signature |
 | `search_hex_packages` | Search Hex for Gleam packages |
 | `get_package_releases` | List the 20 most recent releases for a Hex package |
 
-All six tools are advertised as read-only, non-destructive, and idempotent.
+All seven tools are advertised as read-only, non-destructive, and idempotent.
 The local tools require a directory containing `gleam.toml`. The ecosystem
 tools are stateless and use TLS-verified HTTP requests with a 10-second timeout.
+
+`get_dependency_api` never fetches: it reads only what `gleam add` /
+`gleam deps download` already placed under `build/packages/`, reports the exact
+version (or git commit) from `manifest.toml`, flags transitive dependencies that
+must be added to `gleam.toml` before they can be imported, omits `@internal`
+declarations (with a count), and returns an error naming the file rather than a
+partial listing if a source file cannot be read as Gleam declarations. Path
+dependencies are out of scope. Unlike the other tools it returns JSON, since
+its result is structured data (identity fields plus an `items` array of
+`{kind, name, signature, docs, deprecated}`). See `PROBLEM_FRAMES.md`, Entry #1.
 
 `gloogle_search` depends on the external `api.gloogle.run` service. If that
 service is unavailable or returns an unexpected response, the tool returns an

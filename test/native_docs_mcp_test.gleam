@@ -39,6 +39,7 @@ pub fn list_tools_is_safe_core_test() {
     "get_compiler_diagnostics",
     "list_dependencies",
     "list_local_modules",
+    "get_dependency_api",
     "gloogle_search",
     "search_hex_packages",
     "get_package_releases",
