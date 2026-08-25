@@ -281,3 +281,80 @@ Verified 2026-08-25 while gathering ground truth; neither changes this frame:
 - Next reassessment trigger: adding the tool (a new machine boundary — a new local
   read path) is itself the trigger; the entry after implementation should record
   whether R2/R4 held up in a real session.
+
+## Addendum to Entry #1 — 2026-08-25 — Post-implementation
+
+`get_dependency_api` landed in commit `7031a78`. This is the reassessment the entry
+named as its own trigger: a new machine boundary (a local read path into
+`build/packages` and `manifest.toml`). Checked against the shape test — did the
+*problem* change, or just the code? — the answer is: no domain, frame, or requirement
+changed. What follows is evidence and three refinements the implementation forced
+into the open.
+
+### What held
+
+- **Domains as characterised.** The manifest was sufficient as the sole identity
+  authority; `packages.toml` was not needed (directory presence under
+  `build/packages` answered "fetched?" directly). Hex entries carry `version`, git
+  entries carry `commit`; path entries carry `source = "local"` and are refused as
+  designed. No case arose where domain 1 and domain 2 disagreed.
+- **R2 (never fetch)** is structural: the module imports no HTTP client and no
+  command runner. The three precondition failures (absent / unfetched / path dep)
+  are distinct errors naming the user's `gleam` command.
+- **R3 (transitive in scope, directness reported)** — `[dependencies]` and
+  `[dev-dependencies]` both count as direct; a transitive package gets an
+  `import_note` field.
+- **R4 (fail loud, never partial)** is implemented as a per-declaration
+  "unterminated" error naming `file:line`. Evidence on real code: sweeping all 43
+  `.gleam` files vendored under this repo's own `build/packages` produced zero
+  extraction failures, and on every file `items + internal_omitted` equalled the
+  `grep -c '^pub '` count. So the loud path exists and is tested against a fixture,
+  but has **not yet fired on a real package** — which is the intended steady state,
+  not evidence that it never will. The invariance note on domain 4 (syntax grows
+  slowly; misses fail loud) stands unchanged.
+- **Open questions 1–4** were implemented as decided (dependency required, module
+  optional; `@internal` omitted with a count; manifest wins over `gleam.toml`;
+  `project_path` defaults to `.`).
+
+### Refinements the implementation surfaced
+
+1. **Open question 5 (format) is resolved for this tool: JSON.** Two reasons, one of
+   which is a genuine domain observation. (a) The result is structured data —
+   identity fields plus an array of `{kind, name, signature, docs, deprecated}` —
+   and the stakeholder (domain 5) is a program. (b) Package doc comments are
+   themselves Markdown, and routinely contain headings (`## Examples` in
+   `gleam_json`, `gleam_stdlib`). Rendering them verbatim inside a Markdown response
+   embeds one document in another and inverts the heading hierarchy. In JSON the
+   docs are an opaque string field and cannot collide with the response's own
+   structure. This is a property of the lexical domain the entry did not anticipate:
+   the doc comments are not plain text, they are a second markup layer. The other
+   six tools remain Markdown; cross-server consistency is still the separate item.
+
+2. **An implicit requirement made explicit — R6, containment.** The agent supplies
+   `dependency` and `module` as strings, and both become filesystem path components
+   under `build/packages`. Without validation, `module = "../../src/secret"` reads
+   outside the vendored domain entirely — a read of the user's live project or
+   beyond, through a tool whose whole contract is "domain 1 only". The entry's scope
+   boundary (R5: not the user's own modules) implied this but never stated it as a
+   machine-boundary constraint. Stated now: **the machine shall never read a path
+   outside `build/packages/<D>/src` for any input.** Implemented as a strict name
+   grammar (lowercase, digits, underscore; `/` permitted in module names only, no
+   `..`, no leading/trailing/double slash) with tests for traversal in both
+   arguments. This is the same class of concern as the safe-core's "paths are data,
+   never shell" rule, and belongs alongside it.
+
+3. **One deliberate, marked elision, in tension with R4's wording.** `pub const`
+   values that span lines are cut at the first line and marked with `…`
+   (`pub const items = [ …`). R4 says "never partial", but its target is the
+   *surface* — names, types, signatures, docs — and a constant's value is not part
+   of its interface; its name and type annotation are. The elision is visible in the
+   output, not silent, which is the property R4 actually protects. Recorded so a
+   later reader doesn't mistake it for a bug or a violation.
+
+### Still open (unchanged from the entry)
+
+- Git-sourced dependencies were exercised only through a fixture; the on-disk
+  layout under `build/packages` for a real git dep is still unverified.
+- "Did R2/R4 hold up in a real session" — no real session yet. The next field use of
+  the tool by an agent is the evidence this item is waiting for.
+- Module-only lookup and an `@internal` opt-in: no demand yet.
