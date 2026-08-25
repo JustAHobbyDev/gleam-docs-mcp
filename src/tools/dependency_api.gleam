@@ -126,8 +126,10 @@ fn is_direct(project_path: String, name: String) -> Bool {
     Ok(content) ->
       case tom.parse(content) {
         Ok(doc) ->
+          // Both dev-dependency spellings are accepted by Gleam.
           result.is_ok(tom.get(doc, ["dependencies", name]))
           || result.is_ok(tom.get(doc, ["dev-dependencies", name]))
+          || result.is_ok(tom.get(doc, ["dev_dependencies", name]))
         Error(_) -> False
       }
     Error(_) -> False

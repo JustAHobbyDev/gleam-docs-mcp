@@ -276,6 +276,19 @@ pub fn git_identity_and_unterminated_file_test() {
   assert string.contains(error, "unterminated")
 }
 
+pub fn underscore_dev_dependencies_are_direct_test() {
+  setup()
+  let assert Ok(Nil) =
+    simplifile.write(
+      filepath.join(project_path, "gleam.toml"),
+      "name = \"fixture\"\nversion = \"1.0.0\"\n[dependencies]\n[dev_dependencies]\ndirect_dep = \">= 2.0.0 and < 3.0.0\"\n",
+    )
+  let assert Ok(dep) = dependency_api.resolve(project_path, "direct_dep")
+  assert dep.direct
+  let assert Ok(other) = dependency_api.resolve(project_path, "trans_dep")
+  assert !other.direct
+}
+
 pub fn precondition_errors_test() {
   setup()
   let assert Error(missing) =

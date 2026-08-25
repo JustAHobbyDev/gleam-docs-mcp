@@ -23,10 +23,13 @@ pub fn list_dependencies(project_path: String) -> Result(String, String) {
             Ok(d) -> d
             Error(_) -> dict.new()
           }
-          let dev_deps = case tom.get_table(doc, ["dev-dependencies"]) {
-            Ok(d) -> d
-            Error(_) -> dict.new()
-          }
+          // Gleam accepts both spellings; `gleam new` writes the underscore
+          // form since 1.x, older projects use the hyphen form.
+          let dev_deps =
+            dict.merge(
+              table_or_empty(doc, "dev-dependencies"),
+              table_or_empty(doc, "dev_dependencies"),
+            )
           Ok(
             "### Project Dependencies\n"
             <> format_deps(deps)
@@ -38,6 +41,16 @@ pub fn list_dependencies(project_path: String) -> Result(String, String) {
       }
     }
     Error(_) -> Error("Could not read gleam.toml at " <> toml_path)
+  }
+}
+
+fn table_or_empty(
+  doc: dict.Dict(String, tom.Toml),
+  key: String,
+) -> dict.Dict(String, tom.Toml) {
+  case tom.get_table(doc, [key]) {
+    Ok(d) -> d
+    Error(_) -> dict.new()
   }
 }
 

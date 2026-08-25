@@ -351,10 +351,29 @@ into the open.
    output, not silent, which is the property R4 actually protects. Recorded so a
    later reader doesn't mistake it for a bug or a violation.
 
+### Git dependencies: verified against the real build tool (same day)
+
+A scratch project with `filepath = { git = "…", ref = "v1.1.2" }` was resolved by
+`gleam deps download` (Gleam 1.18.1). Confirmed: the manifest entry carries
+`source = "git"`, `repo`, and `commit`; the checkout lands at
+`build/packages/<name>/` with the same `src/` layout as a Hex package; the tool
+reads it and reports the commit as `version`. The git-dep item is closed.
+
+The same check found the **first real crack in a domain characterisation**, in
+domain 6 (the user's `gleam.toml`): Gleam accepts two spellings for the
+dev-dependency table, `[dev-dependencies]` (older projects, this repo) and
+`[dev_dependencies]` (what `gleam new` writes today). The tool, and the
+pre-existing `list_dependencies`, only knew the hyphen form — so on any freshly
+scaffolded project a dev dependency was reported as *transitive* with a spurious
+"run `gleam add`" note. That is a direct R3 failure: the directness fact is the one
+thing R3 exists to get right. Both tools now accept both spellings, with tests.
+Lesson for the domain list: a lexical domain can encode one fact in more than one
+surface form, and a fixture written from memory of one form will not catch the
+other. Verification against the real producer of the artifact (here, `gleam new`)
+is what surfaced it.
+
 ### Still open (unchanged from the entry)
 
-- Git-sourced dependencies were exercised only through a fixture; the on-disk
-  layout under `build/packages` for a real git dep is still unverified.
 - "Did R2/R4 hold up in a real session" — no real session yet. The next field use of
   the tool by an agent is the evidence this item is waiting for.
 - Module-only lookup and an `@internal` opt-in: no demand yet.
